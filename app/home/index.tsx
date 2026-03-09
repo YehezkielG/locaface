@@ -1,7 +1,7 @@
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import React from 'react';
 import { View, Text, Button } from 'react-native';
-import { supabase } from '../src/lib/supabase';
+import { supabase } from '../../src/lib/supabase';
 
 export default function HomePage() {
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
