@@ -21,6 +21,7 @@ export default function RootLayout() {
           .select('*')
           .eq('id', session?.user?.id)
           .maybeSingle();
+        console.log("Cek profil user:", { data, error });
         if (!data) {
         router.push({
           pathname:'/onboarding',

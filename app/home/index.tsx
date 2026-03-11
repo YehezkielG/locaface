@@ -10,7 +10,6 @@ export default function HomePage() {
     try {
       await GoogleSignin.signOut();
       await supabase.auth.signOut();
-      console.log("Berhasil keluar sepenuhnya!");
     } catch (error) {
       console.error("Gagal logout:", error);
     }
