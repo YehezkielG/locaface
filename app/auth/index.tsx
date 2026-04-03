@@ -2,7 +2,8 @@ import { Text, View, TouchableHighlight, Image, TextInput } from "react-native";
 import React from 'react';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../src/lib/supabase'; 
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import { showPopup } from '@/src/lib/inAppPopup';
 
 GoogleSignin.configure({
   webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID as string,
@@ -10,29 +11,55 @@ GoogleSignin.configure({
 
 export default function App() {
   const [isAuthenticating, setIsAuthenticating] = React.useState(false);
+  const loginInProgressRef = React.useRef(false);
   const router = useRouter();
 
   const handleNativeGoogleLogin = async () => {
+    if (isAuthenticating || loginInProgressRef.current) {
+      return;
+    }
+
+    loginInProgressRef.current = true;
+
     try {
       setIsAuthenticating(true);
       await GoogleSignin.hasPlayServices();
       
       const userInfo = await GoogleSignin.signIn();
-      
-      if (userInfo.data?.idToken) {
-        const { data, error } = await supabase.auth.signInWithIdToken({
+
+      const fallbackTokens = await GoogleSignin.getTokens().catch(() => null);
+      const idToken = userInfo.data?.idToken || fallbackTokens?.idToken;
+
+      if (idToken) {
+        const { error } = await supabase.auth.signInWithIdToken({
           provider: 'google',
-          token: userInfo.data?.idToken,
+          token: idToken,
         });
 
         if (error) throw error;
-        console.log("Login sukses! Menyimpan sesi...");
-        router.replace('./home');
+        router.replace('/home');
       } else {
-        throw new Error('Tidak ada ID Token dari Google');
+        throw new Error('Google token is unavailable');
       }
     } catch (error: any) {
-      console.error("Native Login Gagal:", error.message);
+      const code = error?.code;
+      if (code === statusCodes.IN_PROGRESS || String(error?.message || '').toLowerCase().includes('sign-in in progress')) {
+        showPopup({
+          title: 'Login',
+          message: 'Google sign-in is already in progress. Please wait a moment.',
+          type: 'info',
+        });
+      } else {
+        console.error("Native login failed:", error?.message || String(error));
+        showPopup({
+          title: 'Login Failed',
+          message: error?.message || 'Unable to sign in with Google. Please try again.',
+          type: 'error',
+        });
+      }
+    } finally {
+      loginInProgressRef.current = false;
+      setIsAuthenticating(false);
     }
   };
 
@@ -45,10 +72,11 @@ export default function App() {
         </Text>
         <TouchableHighlight
           onPress={handleNativeGoogleLogin}
+          disabled={isAuthenticating}
           className="mb-3  rounded-md"
           underlayColor="#f3f4f6" // Ini untuk warna efek saat tombol ditekan (opsional)
         >
-          <View className="flex-row py-4 w-full items-center justify-center gap-2 rounded-md border border-gray-300 bg-white">
+          <View className={`flex-row py-4 w-full items-center justify-center gap-2 rounded-md border border-gray-300 ${isAuthenticating ? 'bg-gray-100' : 'bg-white'}`}>
             <Image
               source={require('../../assets/images/auth/google.png')} className="w-5 h-5" resizeMode="contain"
             />

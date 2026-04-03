@@ -1,14 +1,18 @@
-import { View, Text, TextInput, TouchableOpacity, Alert, Image, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet, Dimensions, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome5';
 import { handleAvatarPress } from '../../src/lib/ImagePicker';
 import * as FileSystem from 'expo-file-system/legacy';
-
 import React, { useState, useRef } from 'react';
-import { Camera, useCameraDevice, useFrameProcessor } from 'react-native-vision-camera';
+import { Camera, useCameraDevice, useFrameProcessor, useCameraFormat } from 'react-native-vision-camera';
 import { useFaceDetector } from 'react-native-vision-camera-face-detector';
 import { Worklets } from 'react-native-worklets-core';
+import { supabase } from '@/src/lib/supabase';
+import { isAxiosError } from 'axios';
+import { signedPost } from '@/src/lib/securityServices';
+import uploadAvatar from '../../src/lib/ImageUploader';
+import { showPopup } from '@/src/lib/inAppPopup';
 
 export default function OnboardingScreen() {
   const { avatar: avatarParam, fullName: fullNameParam } = useLocalSearchParams<{
@@ -20,18 +24,106 @@ export default function OnboardingScreen() {
   const initialAvatarUri = Array.isArray(avatarParam) ? (avatarParam[0] ?? '') : (avatarParam ?? '');
 
   const [username, setUsername] = useState(initialUsername);
+  const [userTag, setUserTag] = useState('');
   const [gender, setGender] = useState('');
   const [avatarUri, setAvatarUri] = useState(initialAvatarUri);
   const [isCameraVisible, setIsCameraVisible] = useState(false);
   const [capturedFaceImages, setCapturedFaceImages] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = () => {
-    alert(`Username: ${username}\nGender: ${gender}\nFace captures: ${capturedFaceImages.length}`);
+  const handleSubmit = async () => {
+    const normalizedUserTag = userTag.trim().replace(/^@+/, '').toLowerCase();
+
+    if (!username || !gender) {
+      showPopup({ title: 'Hold On!', message: 'Please fill in your username and select your gender before submitting.', type: 'warning' });
+      return;
+    }
+
+    if (normalizedUserTag && !/^[a-z0-9._]{3,20}$/.test(normalizedUserTag)) {
+      showPopup({
+        title: 'Invalid User Tag',
+        message: 'Use 3-20 characters with lowercase letters, numbers, dots, or underscores.',
+        type: 'warning',
+      });
+      return;
+    }
+
+    if (capturedFaceImages.length < 3) {
+      showPopup({ title: 'Almost There!', message: 'Please capture all 3 face images before submitting.', type: 'warning' });
+      return;
+    }
+    
+    const { data: { session }, } = await supabase.auth.getSession();
+    const token = session?.access_token || '';
+    
+    try {
+      if (!token) {
+        showPopup({ title: 'Unauthorized', message: 'Please sign in again.', type: 'warning' });
+        return;
+      }
+      if (!session) {
+        showPopup({ title: 'Unauthorized', message: 'Session not found. Please sign in again.', type: 'warning' });
+        return;
+      }
+      setIsSubmitting(true);
+
+      let avatarUrlForDb = avatarUri;
+      const isLocalAvatarPath = !!avatarUri && !/^https?:\/\//i.test(avatarUri);
+
+      if (isLocalAvatarPath) {
+        const uploadedAvatarUrl = await uploadAvatar(avatarUri, session.user.id);
+        if (!uploadedAvatarUrl) {
+          showPopup({ title: 'Error', message: 'Failed to upload profile photo!', type: 'error' });
+          return;
+        }
+        avatarUrlForDb = uploadedAvatarUrl;
+      }
+
+      const response = await signedPost('/register', { 
+        email: session?.user.email,
+        avatar_url: avatarUrlForDb,
+        username: username,
+        user_tag: normalizedUserTag || null,
+        gender: gender,
+        capture_source: 'onboarding',
+        image_front: capturedFaceImages[0],
+        image_left: capturedFaceImages[1],
+        image_right: capturedFaceImages[2],
+      }, token);
+
+      const { error: profileSyncError } = await supabase
+          .from('profiles')
+          .update({
+            avatar_url: avatarUrlForDb || null,
+            user_tag: normalizedUserTag || null,
+          })
+          .eq('id', session.user.id);
+
+      if (profileSyncError) {
+        console.warn('Failed to sync profile fields to profiles table:', profileSyncError.message);
+      }
+
+      if(response.status === 200) {
+        showPopup({ title: 'Success', message: 'Your profile has been created successfully!', type: 'success' });
+        router.replace('/home');
+      } else {
+        showPopup({ title: 'Error', message: 'Failed to create profile. Please try again.', type: 'error' });
+      }
+      
+    } catch (error) {
+      if (isAxiosError(error)) {
+      
+      } else {
+      console.error('Unexpected error:', error);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleOpenCamera = () => {
     if (!username || !gender) {
-      Alert.alert('Hold On!', 'Please fill in your username and select your gender first.');
+      showPopup({ title: 'Hold On!', message: 'Please fill in your username and select your gender first.', type: 'warning' });
       return;
     }
 
@@ -46,7 +138,7 @@ export default function OnboardingScreen() {
           Welcome, complete your profile 👋🏼
         </Text>
         <Text className="text-base text-gray-500 leading-relaxed">
-          Complete your identity and record your face to start automatic attendance with Locaface.
+          Complete your identity and record your face to start automatic precence with Locaface.
         </Text>
       </View>
 
@@ -71,6 +163,21 @@ export default function OnboardingScreen() {
             value={username}
             onChangeText={setUsername}
           />
+        </View>
+
+        <View>
+          <Text className="text-sm font-bold text-gray-700 mt-2 mb-2 ml-1">User Tag</Text>
+          <TextInput
+            className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 text-base text-gray-900"
+            placeholder="example: john.doe"
+            placeholderTextColor="#6B7280"
+            autoCapitalize="none"
+            autoCorrect={false}
+            value={userTag}
+            onChangeText={(value) => setUserTag(value.replace(/\s/g, ''))}
+          />
+          <Text className="text-xs text-gray-500 mt-1 ml-1">Student ID, Nickname ect</Text>
+          <Text className="text-xs text-gray-400 mt-1 ml-1">Optional. 3-20 chars: a-z, 0-9, dot, underscore.</Text>
         </View>
 
         <View>
@@ -163,6 +270,13 @@ export default function OnboardingScreen() {
           setCameraVisible={setIsCameraVisible}
         />
       )}
+      {isSubmitting && (
+      <View className="absolute inset-0 bg-black/50 justify-center items-center">
+        <View className="px-6 py-4 rounded-xl flex-row items-center gap-3">
+          <ActivityIndicator size="large" />
+        </View>
+      </View>
+    )}
     </SafeAreaView>
   );
 }
@@ -250,16 +364,22 @@ function CameraView({
     }
   }, [captureStep, onFaceDetected]);
 
+  const format = useCameraFormat(device, [
+    { photoAspectRatio: 3 / 4 }, 
+    { photoResolution: { width: 480, height: 640 } } 
+  ]);
+
   if (!device) {
     return (
       <View className="flex-1 bg-black justify-center items-center">
+        <ActivityIndicator size="large" />
         <Text className="text-white">Initializing Camera...</Text>
       </View>
     );
   }
 
   return (
-    <View style={[StyleSheet.absoluteFill, { backgroundColor: 'black' }]}>
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: 'black' } ]} className="justify-center items-center">
       <Camera
         ref={cameraRef}
         className="flex-1"
@@ -267,13 +387,14 @@ function CameraView({
         isActive={true}
         photo={true}
         frameProcessor={frameProcessor}
+        format={format}
         onInitialized={() => setIsCameraReady(true)}
-        style={StyleSheet.absoluteFill}
+        style={styles.cameraPreview}
       />
 
       <View className="absolute inset-0 justify-center items-center">
         <View
-          className={`w-[260px] h-[360px] border-4 border-dashed rounded-[130px] mb-20 ${
+          className={`w-[220px] h-[320px] border-4 border-dashed rounded-[130px] mt-10 mb-10 ${
             isProcessing ? 'border-green-500' : 'border-white/50'
           }`}
         />
@@ -295,3 +416,14 @@ function CameraView({
     </View>
   );
 }
+
+const screenWidth = Dimensions.get('window').width;
+const cameraHeight = screenWidth * (4 / 3);
+
+const styles = StyleSheet.create({
+  cameraPreview: {
+    width: screenWidth,
+    height: cameraHeight,
+    overflow: 'hidden', // Biar rapi
+  },
+});
