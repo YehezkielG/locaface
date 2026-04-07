@@ -70,6 +70,12 @@ export default function App() {
         <Text className="text-center text-2xl text-gray-800 font-bold mb-10">
           locaface
         </Text>
+        <Text className="text-center text-gray-600">
+          Sign in to your account
+        </Text>
+        <Text className="text-center text-gray-600 mb-6">
+          AI-powered automated attendance
+        </Text>
         <TouchableHighlight
           onPress={handleNativeGoogleLogin}
           disabled={isAuthenticating}
@@ -84,35 +90,6 @@ export default function App() {
           
           </View>
         </TouchableHighlight>
-
-        <View className="my-6 flex-row items-center w-full">
-          <View className="flex-1 h-[1px] bg-gray-300" />
-          <Text className="mx-4 text-gray-400 text-xs uppercase font-semibold">
-            or
-          </Text>
-          <View className="flex-1 h-[1px] bg-gray-300" />
-        </View>
-
-        {/* Email Form */}
-        <View>
-          <View className="mb-4">
-            <Text className="block text-sm font-medium text-gray-400">
-              Email address
-            </Text>
-            <TextInput
-              keyboardType="email-address"
-              id="email"
-              placeholder="you@example.com"
-              className={`mt-1 w-full rounded-md border py-4 px-4 text-gray-800 transition-all duration-200`}
-            />
-          </View>
-
-          <TouchableHighlight className="w-full rounded-md bg-blue-500 py-4 font-semibold text-white transition hover:bg-blue-600 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2">
-            <View>
-              <Text className="text-gray-100">Continue with Email</Text>
-            </View>
-          </TouchableHighlight>
-        </View>
       </View>
     </View>
   );

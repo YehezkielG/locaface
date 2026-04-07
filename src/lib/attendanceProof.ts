@@ -2,7 +2,7 @@ import { supabase } from '@/src/lib/supabase';
 import { signedPost } from '@/src/lib/securityServices';
 
 const normalizeRemoteUrl = (value: string) => {
-  const trimmed = value.trim();
+  const trimmed = value.trim();fwwefewfw
   if (!trimmed) return '';
   return encodeURI(trimmed);
 };

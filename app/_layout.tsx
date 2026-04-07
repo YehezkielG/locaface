@@ -3,10 +3,14 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActivityIndicator, Alert, BackHandler, Text, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Camera } from 'react-native-vision-camera';
 import "../global.css";
 import { supabase } from '../src/lib/supabase';
 import InAppPopupHost from '../src/components/InAppPopupHost';
 import { checkSystemTimeSync } from '../src/lib/securityServices';
+
+const CAMERA_PERMISSION_PROMPTED_KEY = 'locaface.camera_permission_prompted.v1';
 
 export const metadata = {
   title: 'locaface',
@@ -58,6 +62,26 @@ export default function RootLayout() {
 
     return true;
   };
+
+  useEffect(() => {
+    const requestCameraPermissionOnFirstLaunch = async () => {
+      try {
+        const alreadyPrompted = await AsyncStorage.getItem(CAMERA_PERMISSION_PROMPTED_KEY);
+        if (alreadyPrompted === 'true') return;
+
+        const status = await Camera.getCameraPermissionStatus();
+        if (status === 'not-determined') {
+          await Camera.requestCameraPermission();
+        }
+
+        await AsyncStorage.setItem(CAMERA_PERMISSION_PROMPTED_KEY, 'true');
+      } catch (error) {
+        console.warn('Failed to request first-launch camera permission:', error);
+      }
+    };
+
+    requestCameraPermissionOnFirstLaunch();
+  }, []);
 
   useEffect(() => {
     let mounted = true;

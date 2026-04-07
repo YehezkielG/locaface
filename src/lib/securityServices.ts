@@ -48,8 +48,7 @@ const safeDelete = async (key: string) => {
   }
 };
 
-// const getAiBaseUrl = () => process.env.EXPO_PUBLIC_AI_SERVICE_URL;
-export const getAiBaseUrl = () => 'http://your-ai-service.com'; // TODO: set this in env
+const getAiBaseUrl = () => process.env.EXPO_PUBLIC_AI_SERVICE_URL;
 
 const loadHmacSession = async (): Promise<HmacSession | null> => {
   const [keyId, secretB64, expiresAtStr] = await Promise.all([
