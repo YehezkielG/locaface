@@ -1,4 +1,4 @@
-import { Text, View, TouchableHighlight, Image, TextInput } from "react-native";
+import { Text, View, TouchableHighlight, Image } from "react-native";
 import React from 'react';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../src/lib/supabase'; 
@@ -67,15 +67,22 @@ export default function App() {
     <View className="flex-1 items-center justify-center bg-white">
       <View className="w-full max-w-md p-8 g">
         {/* <Image src="/logo.png" alt="Logo" width={75} height={75} className="mx-auto mb-4" /> */}
-        <Text className="text-center text-2xl text-gray-800 font-bold mb-10">
+        <Text className="text-center text-2xl text-gray-800 font-bold mb-5">
           locaface
-        </Text>
-        <Text className="text-center text-gray-600">
-          Sign in to your account
         </Text>
         <Text className="text-center text-gray-600 mb-6">
           AI-powered automated attendance
         </Text>
+
+        <View className="mb-5 rounded-xl border border-gray-200 bg-gray-50 p-4">
+          <Text className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
+            Why Locaface?
+          </Text>
+          <Text className="text-sm text-gray-700 mb-1">• Fast location-aware class check-in</Text>
+          <Text className="text-sm text-gray-700 mb-1">• AI face verification for safer precence</Text>
+          <Text className="text-sm text-gray-600">• Your profile setup is completed after sign in</Text>
+        </View>
+
         <TouchableHighlight
           onPress={handleNativeGoogleLogin}
           disabled={isAuthenticating}
@@ -90,6 +97,9 @@ export default function App() {
           
           </View>
         </TouchableHighlight>
+        <Text className="mt-2 text-center text-xs text-gray-400">
+          By continuing, you agree to use your account for class precence verification.
+        </Text>
       </View>
     </View>
   );
